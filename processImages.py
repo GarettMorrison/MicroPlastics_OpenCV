@@ -13,6 +13,7 @@ import os
 
 
 def cropToScope(img):
+    # Crop image to specific ranges to just get particle
 
     # print(img)
     yMin = int(img.shape[1] * 0.38)
@@ -25,6 +26,7 @@ def cropToScope(img):
 
 
 def value_filter(img, valueMin):
+    # Filter out all pixels with values above valueMin
     img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
     for yy in np.arange(img.shape[0]):
@@ -40,16 +42,18 @@ def value_filter(img, valueMin):
 
 
 def edge_filter(img):
+    # Filter out noise, get solid particle outline
     kernel = np.ones((10,10),np.uint8)
     imgOut = cv2.morphologyEx(img, cv2.MORPH_ELLIPSE, kernel)
     return(imgOut)
 
 
-def getDist(pt1, pt2):
+def getDist(pt1, pt2): # Simple distance function
     return(m.sqrt( (pt1[0] - pt2[0])**2 + (pt1[1] - pt2[1])**2 ))
 
 
-def farthestPoint(basePt, pts):
+def farthestPoint(basePt, pts): 
+    # Get point that is farthest from the base
     maxDist = 0
     maxPt = (0,0)
     for fooPt in pts:
@@ -61,6 +65,7 @@ def farthestPoint(basePt, pts):
 
 
 def getMaxWidth(img):
+    # Get maximum width of outline image
     pts = []
     for yy in np.arange(img.shape[0]):
         for xx in np.arange(img.shape[1]):
@@ -83,13 +88,13 @@ def getMaxWidth(img):
     return(outImg, maxDist)
 
 
-def scaleFrac(img, scaleFrac):
+def scaleFrac(img, scaleFrac): # easily scale image by constant value
     dims = [int(img.shape[1]*scaleFrac), int(img.shape[0]*scaleFrac)]
     imScaled = cv2.resize(img, dims, interpolation = cv2.INTER_AREA)
     return(imScaled)
 
 
-def adjacentImages(imgArr):
+def adjacentImages(imgArr): # Place images into grid for easy comparison
     blankImg = np.zeros((imgArr[0][0].shape[0], imgArr[0][0].shape[1], 3))
 
     rowMax = max([len(ii) for ii in imgArr])
@@ -145,61 +150,54 @@ if __name__=="__main__":
     fileOut.write('File Name, File Index,  Size (cm), Size (px)\n')
     fileOut.close()
 
-    #range of images to check
-    
+    # Get set of image file names     
     dataSet = getFileSet("TestData", tag='.jpg')
-    print(dataSet)
+    # print(dataSet)
 
-    for fileName in dataSet:   
-        imgRaw = cv2.imread(fileName, 1)
-        name = fileName.split('/')[-1]
-        
-        # img = cv2.imread('Data/MISPFeb2501.jpg', 1)
+    for fileName in dataSet:  
+        imgRaw = cv2.imread(fileName, 1) # load image
+        name = fileName.split('/')[-1] # get just filename
     
-        img = cropToScope(imgRaw)
-        # imgFilt = value_filter(img, 120)
-        imgEdge = edge_filter(img)
-        # imgEdgeFilt = value_filter(imgEdge, 80)
-        imgEdgeFilt = value_filter(imgEdge, 70)
-
-        imgCanny = cv2.cvtColor(cv2.Canny(img, 100, 200), cv2.COLOR_GRAY2BGR)
-        imgEdgeCanny = cv2.cvtColor(cv2.Canny(imgEdge, 100, 200), cv2.COLOR_GRAY2BGR)
-        imgEdgeFiltCanny_gray = cv2.Canny(imgEdgeFilt, 100, 200)
+        img = cropToScope(imgRaw) # Crop image to just particle
+        imgEdge = edge_filter(img) # Run edge filter to elimate noisy background
+        imgEdgeFilt = value_filter(imgEdge, 70) # Value filter to just get image
+        imgEdgeFiltCanny_gray = cv2.Canny(imgEdgeFilt, 100, 200) # Outline particle
 
         imgEdgeFiltCanny, maxWidth = getMaxWidth(imgEdgeFiltCanny_gray)
         particleSize = maxWidth / 575.6808510638298
 
+        # Combine process images
         imCombined = adjacentImages(
             [[img, imgEdge],
             [imgEdgeFilt, imgEdgeFiltCanny]])
             
-        # imScaled = scaleFrac(imCombined, 1)
         imOut = imCombined
         
+        # Display max width in pixels
         imOut = cv2.putText(imOut, 
             str('px:'+ str(round(maxWidth, 3))),
             (int(imOut.shape[1]/2), int(imOut.shape[0]/2)+32), 
             cv2.FONT_HERSHEY_SIMPLEX, 
             1, (255,0,255), 2, cv2.LINE_AA)
 
+        # Display max width in mm
         imOut = cv2.putText(imOut, 
             str('cm:'+ str(round(particleSize, 3))),
             (int(imOut.shape[1]/2), int(imOut.shape[0]/2)+64), 
             cv2.FONT_HERSHEY_SIMPLEX, 
             1, (255,0,255), 2, cv2.LINE_AA)
         
-        cv2.imwrite('OutputPictures/filt_' + str(name), imOut)
+
+        cv2.imwrite('OutputPictures/filt_' + str(name), imOut) # Save process image
 
         print(str(name) + ' : ' + str(particleSize))
         
+        # Save data to output csv
         fileOut = open('outData.csv', 'a')
         fileOut.write(fileName + ', ' + str(name) + ', '  + str(particleSize) + ', ' + str(maxWidth) + '\n')
         fileOut.close()
 
+        # # Display each image on run
         # cv2.imshow('image', imOut)
-
-        # # wait for a key to be pressed to exit
         # cv2.waitKey(0)
-    
-        # # close the window
         # cv2.destroyAllWindows()
