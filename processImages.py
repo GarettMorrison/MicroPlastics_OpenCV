@@ -65,6 +65,18 @@ def pixFromSelection(imgBase, imgSelect):
     return(np.array(pixels))
 
 
+def blackBackroundFromSelection(imgBase, imgSelect):
+    # Get a list of pixels from imgBase where imgSelect has color
+    img = np.array(imgBase) # Get empty array like the base image
+
+    for yy in np.arange(imgBase.shape[0]):
+        for xx in np.arange(imgBase.shape[1]):
+            if not (imgSelect[yy][xx]).any() != 0:
+                img[yy][xx] = [0,0,0]
+
+    return(img)
+
+
 def getDist(pt1, pt2): # Simple distance function
     return(m.sqrt( (pt1[0] - pt2[0])**2 + (pt1[1] - pt2[1])**2) )
 
@@ -169,8 +181,32 @@ if __name__=="__main__":
     fileOut.close()
 
     # Get set of image file names     
-    dataSet = getFileSet("TestData", tag='.jpg')
-    # dataSet = getFileSet("DataIn", tag='.jpg')
+    # dataSet = getFileSet('TestData', tag='.jpg')
+    dataSet = getFileSet("DataIn", tag='.jpg')
+
+    # Get labeled data and only pull pics of it
+    labelData = pandas.read_csv('BigData/MISPFeb_labeled.csv')
+    
+    print('Starting loop')
+
+    ii = 0 # Start at first file    
+    while True:
+
+        if ii >= len(dataSet): break # end if at end of file list
+
+        # Remove if not in labeled data
+        isIncluded = False
+        for fooID in labelData['ID']:
+            if dataSet[ii].find(fooID) > 0:
+                isIncluded = True
+                break
+
+        if isIncluded:
+            ii += 1
+        else:   # if tag not in name, remove
+            dataSet.pop(ii)
+
+    print(dataSet)
 
     for fileName in dataSet:  
         imgRaw = cv2.imread(fileName, 1) # load image
@@ -223,5 +259,7 @@ if __name__=="__main__":
 
         # # Display each image on run
         # cv2.imshow('image', imOut)
-        # cv2.waitKey(0)
+        # keypress = cv2.waitKey(0)
         # cv2.destroyAllWindows()
+        # if keypress == 113: # if key hit was q, exit without displaying more
+        #     break
