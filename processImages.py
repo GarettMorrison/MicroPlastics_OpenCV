@@ -3,12 +3,14 @@ from lib2to3.pgen2.token import NEWLINE
 from re import L
 from telnetlib import XASCII
 from matplotlib.cbook import maxdict
+import pandas
 from pandas import concat
 import colorsys
 import cv2
 import numpy as np
 import math as m
 import os
+import csv
 
 
 
@@ -43,13 +45,28 @@ def value_filter(img, valueMin):
 
 def edge_filter(img):
     # Filter out noise, get solid particle outline
-    kernel = np.ones((10,10),np.uint8)
+    kernelDim = 13
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(kernelDim, kernelDim))
+    # kernel = np.ones((kernelDim, kernelDim),np.uint8)
     imgOut = cv2.morphologyEx(img, cv2.MORPH_ELLIPSE, kernel)
     return(imgOut)
 
 
+def pixFromSelection(imgBase, imgSelect):
+    # Get a list of pixels from imgBase where imgSelect has color
+    pixels = []
+
+    for yy in np.arange(img.shape[0]):
+        for xx in np.arange(img.shape[1]):
+            if((imgSelect[yy][xx]).any() != 0):
+                pixels.append(imgBase[yy][xx])
+                # print(imgBase[yy][xx])
+
+    return(np.array(pixels))
+
+
 def getDist(pt1, pt2): # Simple distance function
-    return(m.sqrt( (pt1[0] - pt2[0])**2 + (pt1[1] - pt2[1])**2 ))
+    return(m.sqrt( (pt1[0] - pt2[0])**2 + (pt1[1] - pt2[1])**2) )
 
 
 def farthestPoint(basePt, pts): 
@@ -66,11 +83,16 @@ def farthestPoint(basePt, pts):
 
 def getMaxWidth(img):
     # Get maximum width of outline image
+    
+    outImg = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
     pts = []
     for yy in np.arange(img.shape[0]):
         for xx in np.arange(img.shape[1]):
             if(img[yy][xx] != 0):
                 pts.append((xx, yy))
+    
+    if len(pts) <= 0: return(outImg, 0)
 
     xAvg = sum([ii[0] for ii in pts]) / len(pts)
     yAvg = sum([ii[1] for ii in pts]) / len(pts)
@@ -80,7 +102,6 @@ def getMaxWidth(img):
     pt2 = farthestPoint(pt1, pts)
     maxDist = getDist(pt1, pt2)
 
-    outImg = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
     outImg = cv2.line(outImg, pt1, pt2, (0,0,255), 2)
     outImg = cv2.circle(outImg, (int(midPt[0]), int(midPt[1])), 5, (255,0,0), 2)
@@ -115,9 +136,10 @@ def adjacentImages(imgArr): # Place images into grid for easy comparison
 
     return(np.concatenate(imgRows, axis=0))
 
+
 def getFileSet(folderName, recursive=False, tag = ''):
     # get array of file names as strings, can specify a tag
-    # getFileSet('FolderName', tag='jpg')
+    # ex: "getFileSet('FolderName', tag='jpg')
     outFiles = []
 
     if not recursive:
@@ -141,10 +163,6 @@ def getFileSet(folderName, recursive=False, tag = ''):
 
 # driver function
 if __name__=="__main__":
-
-
-
-
     # Reset output file
     fileOut = open('outData.csv', 'w')
     fileOut.write('File Name, File Index,  Size (cm), Size (px)\n')
@@ -152,19 +170,24 @@ if __name__=="__main__":
 
     # Get set of image file names     
     dataSet = getFileSet("TestData", tag='.jpg')
-    # print(dataSet)
+    # dataSet = getFileSet("DataIn", tag='.jpg')
 
     for fileName in dataSet:  
         imgRaw = cv2.imread(fileName, 1) # load image
         name = fileName.split('/')[-1] # get just filename
-    
-        img = cropToScope(imgRaw) # Crop image to just particle
-        imgEdge = edge_filter(img) # Run edge filter to elimate noisy background
-        imgEdgeFilt = value_filter(imgEdge, 70) # Value filter to just get image
-        imgEdgeFiltCanny_gray = cv2.Canny(imgEdgeFilt, 100, 200) # Outline particle
 
-        imgEdgeFiltCanny, maxWidth = getMaxWidth(imgEdgeFiltCanny_gray)
-        particleSize = maxWidth / 575.6808510638298
+        # img = imgRaw
+        img = cropToScope(imgRaw)   # Crop image to just particle
+        imgEdge = edge_filter(img)      # Run edge filter to elimate noisy background
+        imgEdgeFilt = value_filter(imgEdge, 70)     # Value filter to just get image
+        imgEdgeFiltCanny_gray = cv2.Canny(imgEdgeFilt, 100, 200)       # Outline particle
+
+        # Get particle pixels and save as image
+        containedPix = pixFromSelection(img, imgEdgeFilt)
+        cv2.imwrite('OutputPictures/pixels_' + str(name), np.array([containedPix]) ) # Save process image
+
+        imgEdgeFiltCanny, maxWidth = getMaxWidth(imgEdgeFiltCanny_gray)     # Get maximum particle width
+        particleSize = maxWidth / 575.6808510638298     # Convert to mm poorly 
 
         # Combine process images
         imCombined = adjacentImages(
@@ -188,6 +211,7 @@ if __name__=="__main__":
             1, (255,0,255), 2, cv2.LINE_AA)
         
 
+        
         cv2.imwrite('OutputPictures/filt_' + str(name), imOut) # Save process image
 
         print(str(name) + ' : ' + str(particleSize))
