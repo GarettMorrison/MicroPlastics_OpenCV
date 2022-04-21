@@ -14,18 +14,15 @@ import csv
 
 
 
-def cropToScope(img):
-    # Crop image to specific ranges to just get particle
+def cropToScope(img, xCrop=(0,1), yCrop = (0,1)):
+    # Crop image to specific ranges to just get particle    
+    leftCrop = int(img.shape[0] * xCrop[0])
+    rightCrop = int(img.shape[0] * xCrop[1])
 
-    # print(img)
-    yMin = int(img.shape[1] * 0.38)
-    yMax = int(img.shape[1] * 0.65)
-    
-    xCrop = int(img.shape[0] * 0.4)
-    # xMax = int(img.shape[0] * 0.9)
+    topCrop = int(img.shape[1] * yCrop[0])
+    botCrop = int(img.shape[1] * yCrop[1])
 
-    return(img[yMin:yMax, xCrop:-1*xCrop])
-
+    return(img[topCrop:-1*botCrop, leftCrop:-1*rightCrop])
 
 def value_filter(img, valueMin):
     # Filter out all pixels with values above valueMin
@@ -181,46 +178,20 @@ if __name__=="__main__":
     fileOut.close()
 
     # Get set of image file names     
-    # dataSet = getFileSet('TestData', tag='.jpg')
-    dataSet = getFileSet("DataIn", tag='.jpg')
-
-    # Get labeled data and only pull pics of it
-    labelData = pandas.read_csv('BigData/MISPFeb_labeled.csv')
+    dataSet = getFileSet('TestData', tag='.jpg')
+    # dataSet = getFileSet("DataIn", tag='.jpg')
     
-    print('Starting loop')
-
-    ii = 0 # Start at first file    
-    while True:
-
-        if ii >= len(dataSet): break # end if at end of file list
-
-        # Remove if not in labeled data
-        isIncluded = False
-        for fooID in labelData['ID']:
-            if dataSet[ii].find(fooID) > 0:
-                isIncluded = True
-                break
-
-        if isIncluded:
-            ii += 1
-        else:   # if tag not in name, remove
-            dataSet.pop(ii)
-
-    print(dataSet)
+    print('Starting process')
 
     for fileName in dataSet:  
         imgRaw = cv2.imread(fileName, 1) # load image
         name = fileName.split('/')[-1] # get just filename
 
         # img = imgRaw
-        img = cropToScope(imgRaw)   # Crop image to just particle
+        img = cropToScope(imgRaw, (0.4, 0.4), (0.4, 0.15))   # Crop image to just particle, numbers are calibrated constants for example data
         imgEdge = edge_filter(img)      # Run edge filter to elimate noisy background
         imgEdgeFilt = value_filter(imgEdge, 70)     # Value filter to just get image
         imgEdgeFiltCanny_gray = cv2.Canny(imgEdgeFilt, 100, 200)       # Outline particle
-
-        # Get particle pixels and save as image
-        containedPix = pixFromSelection(img, imgEdgeFilt)
-        cv2.imwrite('OutputPictures/pixels_' + str(name), np.array([containedPix]) ) # Save process image
 
         imgEdgeFiltCanny, maxWidth = getMaxWidth(imgEdgeFiltCanny_gray)     # Get maximum particle width
         particleSize = maxWidth / 575.6808510638298     # Convert to mm poorly 
@@ -246,7 +217,6 @@ if __name__=="__main__":
             cv2.FONT_HERSHEY_SIMPLEX, 
             1, (255,0,255), 2, cv2.LINE_AA)
         
-
         
         cv2.imwrite('OutputPictures/filt_' + str(name), imOut) # Save process image
 
@@ -257,9 +227,9 @@ if __name__=="__main__":
         fileOut.write(fileName + ', ' + str(name) + ', '  + str(particleSize) + ', ' + str(maxWidth) + '\n')
         fileOut.close()
 
-        # # Display each image on run
-        # cv2.imshow('image', imOut)
-        # keypress = cv2.waitKey(0)
-        # cv2.destroyAllWindows()
-        # if keypress == 113: # if key hit was q, exit without displaying more
-        #     break
+        # Display each image on run
+        cv2.imshow('image', imOut)
+        keypress = cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        if keypress == 113: # if key hit was q, exit without displaying more
+            break
