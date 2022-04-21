@@ -36,7 +36,7 @@ def value_filter(img, valueMin):
             pixel = img[yy][xx]
 
             if pixel[2] > valueMin:
-                img[yy][xx] = [0, 255, 255]
+                img[yy][xx] = [0, 200, 200]
             else:
                 img[yy][xx] = [0, 0, 0]
     
@@ -56,8 +56,8 @@ def pixFromSelection(imgBase, imgSelect):
     # Get a list of pixels from imgBase where imgSelect has color
     pixels = []
 
-    for yy in np.arange(img.shape[0]):
-        for xx in np.arange(img.shape[1]):
+    for yy in np.arange(imgBase.shape[0]):
+        for xx in np.arange(imgBase.shape[1]):
             if((imgSelect[yy][xx]).any() != 0):
                 pixels.append(imgBase[yy][xx])
                 # print(imgBase[yy][xx])
@@ -95,7 +95,6 @@ def farthestPoint(basePt, pts):
 
 def getMaxWidth(img):
     # Get maximum width of outline image
-    
     outImg = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
     pts = []
@@ -115,8 +114,8 @@ def getMaxWidth(img):
     maxDist = getDist(pt1, pt2)
 
 
-    outImg = cv2.line(outImg, pt1, pt2, (0,0,255), 2)
-    outImg = cv2.circle(outImg, (int(midPt[0]), int(midPt[1])), 5, (255,0,0), 2)
+    outImg = cv2.line(outImg, pt1, pt2, (255,150,0), 2)
+    outImg = cv2.circle(outImg, (int(midPt[0]), int(midPt[1])), 5, (150,255,0), 2)
 
     return(outImg, maxDist)
 
@@ -173,7 +172,6 @@ def getFileSet(folderName, recursive=False, tag = ''):
 
 
 
-# driver function
 if __name__=="__main__":
     # Reset output file
     fileOut = open('outData.csv', 'w')
@@ -208,6 +206,48 @@ if __name__=="__main__":
 
     print(dataSet)
 
+
+
+    # Add neural net, burn after testing
+
+    # load json and create model
+    import tensorflow as tf
+    from keras.models import Sequential
+    from keras.layers import Dense
+    from keras.models import model_from_json
+
+    json_file = open('TensorFlow/model.json', 'r')
+    loaded_model_json = json_file.read()
+    json_file.close()
+    loaded_model = model_from_json(loaded_model_json)
+    # load weights into new model
+    loaded_model.load_weights("TensorFlow/model.h5")
+    print("Loaded model from disk")
+
+    TF_colorSet = open("TensorFlow/colors.txt").read().split(',')
+    
+    def badlyGetDataFromPix(pixImg):
+        blue = [foo[0] for foo in pixImg[0]]
+        green = [foo[1] for foo in pixImg[0]]
+        red = [foo[2] for foo in pixImg[0]]
+        print(pixImg)
+        pixHsvImg = cv2.cvtColor(pixImg, cv2.COLOR_BGR2HSV)
+
+        hue = [foo[0] for foo in pixHsvImg[0]]
+        sat = [foo[1] for foo in pixHsvImg[0]]
+        val = [foo[2] for foo in pixHsvImg[0]]
+
+        return([
+                np.average(blue), np.std(blue),
+                np.average(green), np.std(green),
+                np.average(red), np.std(red),
+                np.average(hue), np.std(hue),
+                np.average(sat), np.std(sat),
+                np.average(val), np.std(val),
+            ])
+
+
+
     for fileName in dataSet:  
         imgRaw = cv2.imread(fileName, 1) # load image
         name = fileName.split('/')[-1] # get just filename
@@ -220,15 +260,17 @@ if __name__=="__main__":
 
         # Get particle pixels and save as image
         containedPix = pixFromSelection(img, imgEdgeFilt)
-        cv2.imwrite('OutputPictures/pixels_' + str(name), np.array([containedPix]) ) # Save process image
+        # cv2.imwrite('OutputPictures/pixels_' + str(name), np.array([containedPix]) ) # Save process image
 
         imgEdgeFiltCanny, maxWidth = getMaxWidth(imgEdgeFiltCanny_gray)     # Get maximum particle width
         particleSize = maxWidth / 575.6808510638298     # Convert to mm poorly 
+        
+        imgBack = blackBackroundFromSelection(img, imgEdgeFilt) # Isolate particle against black background
 
         # Combine process images
         imCombined = adjacentImages(
             [[img, imgEdge],
-            [imgEdgeFilt, imgEdgeFiltCanny]])
+            [imgBack, imgEdgeFiltCanny]])
             
         imOut = imCombined
         
@@ -237,15 +279,40 @@ if __name__=="__main__":
             str('px:'+ str(round(maxWidth, 3))),
             (int(imOut.shape[1]/2), int(imOut.shape[0]/2)+32), 
             cv2.FONT_HERSHEY_SIMPLEX, 
-            1, (255,0,255), 2, cv2.LINE_AA)
+            1, (255,150,0), 2, cv2.LINE_AA)
 
         # Display max width in mm
         imOut = cv2.putText(imOut, 
             str('cm:'+ str(round(particleSize, 3))),
             (int(imOut.shape[1]/2), int(imOut.shape[0]/2)+64), 
             cv2.FONT_HERSHEY_SIMPLEX, 
-            1, (255,0,255), 2, cv2.LINE_AA)
+            1, (150,255,0), 2, cv2.LINE_AA)
         
+
+
+
+
+        # More tensorflow stuff to delete
+        # cv2.imwrite('OutputPictures/tmp.jpg', np.array([containedPix]) ) # Save process image
+        colorGuessSet = loaded_model.predict([badlyGetDataFromPix(np.array([containedPix]))])[0]
+        bestColorGuess = max(colorGuessSet)
+        bestColorName = TF_colorSet[np.where(colorGuessSet == bestColorGuess)[0][0]]
+        
+        print(colorGuessSet)
+        print(bestColorName)
+        print('\n\n\n')
+
+        imOut = cv2.putText(imOut, 
+            str(bestColorName + ':' + str(round(bestColorGuess, 5))),
+            (int(imOut.shape[1]/2), int(imOut.shape[0]/2)+96), 
+            cv2.FONT_HERSHEY_SIMPLEX, 
+            1, (150,255,0), 2, cv2.LINE_AA)
+
+
+
+
+
+
 
         
         cv2.imwrite('OutputPictures/filt_' + str(name), imOut) # Save process image
