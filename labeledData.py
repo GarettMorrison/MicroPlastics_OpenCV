@@ -21,7 +21,8 @@ if __name__=="__main__":
     # dataSet = getFileSet('TestData', tag='.jpg')
     dataSet = pi.getFileSet("DataIn", tag='.jpg')
 
-    # Get labeled data and only pull pics of it
+    # Get labeled data and only pull pics out of this ID set
+    # Must have collumns labeled 'ID' and 'Color'
     labelData = pandas.read_csv('BigData/MISPFeb_labeled.csv')
     
     print('Starting loop')

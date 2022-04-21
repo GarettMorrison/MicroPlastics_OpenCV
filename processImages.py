@@ -180,36 +180,9 @@ if __name__=="__main__":
 
     # Get set of image file names     
     # dataSet = getFileSet('TestData', tag='.jpg')
-    dataSet = getFileSet("DataIn", tag='.jpg')
-
-    # Get labeled data and only pull pics of it
-    labelData = pandas.read_csv('BigData/MISPFeb_labeled.csv')
-    
-    print('Starting loop')
-
-    ii = 0 # Start at first file    
-    while True:
-
-        if ii >= len(dataSet): break # end if at end of file list
-
-        # Remove if not in labeled data
-        isIncluded = False
-        for fooID in labelData['ID']:
-            if dataSet[ii].find(fooID) > 0:
-                isIncluded = True
-                break
-
-        if isIncluded:
-            ii += 1
-        else:   # if tag not in name, remove
-            dataSet.pop(ii)
-
-    print(dataSet)
-
-
+    dataSet = getFileSet("DataIn", tag='.jpg')[45:]
 
     # Add neural net, burn after testing
-
     # load json and create model
     import tensorflow as tf
     from keras.models import Sequential
@@ -230,7 +203,7 @@ if __name__=="__main__":
         blue = [foo[0] for foo in pixImg[0]]
         green = [foo[1] for foo in pixImg[0]]
         red = [foo[2] for foo in pixImg[0]]
-        print(pixImg)
+        
         pixHsvImg = cv2.cvtColor(pixImg, cv2.COLOR_BGR2HSV)
 
         hue = [foo[0] for foo in pixHsvImg[0]]
@@ -298,9 +271,9 @@ if __name__=="__main__":
         bestColorGuess = max(colorGuessSet)
         bestColorName = TF_colorSet[np.where(colorGuessSet == bestColorGuess)[0][0]]
         
+        print(name, end=' : ')
+        print(bestColorName, end=' ')
         print(colorGuessSet)
-        print(bestColorName)
-        print('\n\n\n')
 
         imOut = cv2.putText(imOut, 
             str(bestColorName + ':' + str(round(bestColorGuess, 5))),
@@ -317,7 +290,6 @@ if __name__=="__main__":
         
         cv2.imwrite('OutputPictures/filt_' + str(name), imOut) # Save process image
 
-        print(str(name) + ' : ' + str(particleSize))
         
         # Save data to output csv
         fileOut = open('outData.csv', 'a')

@@ -1,5 +1,7 @@
-import tensorflow as tf
+# Load labeled data and train simple neural net to identify colors
+# Data must be in /TensorFlow folder as single row images labeled (Color)_(Index)_pix.jpg, generated using labeled Data.py
 
+import tensorflow as tf
 from numpy import empty
 from scipy import rand
 import processImages as pi
